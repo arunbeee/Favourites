@@ -42,9 +42,9 @@ class SelectionDataLoader {
         theArticle.setLiked(isLiked)
         if isLiked == .liked {
             self.selectedCounter += 1
+        }
             self.articles.remove(at: index)
             self.articles.insert(theArticle, at: index)
-        }
         }
     }
     
@@ -98,7 +98,6 @@ class SelectionDataLoader {
                 } catch {
                     print (error.localizedDescription)
                 }
-        print("Deallocation SelectionDataLoader")
     }
 }
 
