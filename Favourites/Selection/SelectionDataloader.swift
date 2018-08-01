@@ -17,9 +17,13 @@ class SelectionDataLoader {
             URLSession.shared.dataTask(with: theURL) {[weak self] (data, response, error) in
                 if let theData = data, let json = try? JSONSerialization.jsonObject(with: theData, options: .allowFragments), let theJSON = json as? [String:Any]{
                     self?.articles = Article.articles(from: theJSON)
+                    for i in 0..<(self?.articles.count)!{
+                        self?.loadImage(for: i, completion: nil)
+                    }
                     DispatchQueue.main.async {
                         completion( self?.articles)
                     }
+
                 } else {
                     DispatchQueue.main.async {
                         completion(nil)
@@ -33,6 +37,7 @@ class SelectionDataLoader {
     
    
     func setArticleSelection(index:Int, isLiked:ArticleState){
+        if index < articles.count {
         var theArticle = articles[index]
         theArticle.setLiked(isLiked)
         if isLiked == .liked {
@@ -40,36 +45,38 @@ class SelectionDataLoader {
             self.articles.remove(at: index)
             self.articles.insert(theArticle, at: index)
         }
-        
+        }
     }
     
-    func loadImage(for index:Int, completion:@escaping (UIImage?)-> Void){
+    func loadImage(for index:Int, completion:((UIImage?)-> Void)?){
         if index > self.articles.count - 1{
-            completion(getDefaultImage())
+            completion?(getDefaultImage())
             
         } else {
         var article = self.articles[index]
         if let uri = article.cachedImageURL {
             let theURL = URL(fileURLWithPath: uri)
             if let data = try? Data(contentsOf: theURL){
-                completion(UIImage(data: data))
+                completion?(UIImage(data: data))
             } else {
-                completion(nil)
+                completion?(nil)
             }
         } else {
                 if let uri = article.imageURLstring, let url = URL(string: uri){
-                    URLSession.shared.downloadTask(with: url) { (url, response, error) in
+                    URLSession.shared.downloadTask(with: url) {[weak self] (url, response, error) in
                         if let theURL = url,let data = try? Data(contentsOf: theURL), let image = UIImage(data: data) {
-                            article.setCacheURL(theURL.path)
-                            self.articles.remove(at: index)
-                            self.articles.insert(article, at: index)
+                            let path = (self?.documentsDirectory())! + "/Photos/" + theURL.lastPathComponent
+                            try? FileManager.default.moveItem(atPath: theURL.path, toPath: path)
+                            article.setCacheURL(path)
+                            self?.articles.remove(at: index)
+                            self?.articles.insert(article, at: index)
                             DispatchQueue.main.async {
-                                completion(image)
+                                completion?(image)
                             }
                         }
                     }.resume()
             } else {
-                completion(nil)
+                completion?(nil)
             }
         }
         }
@@ -78,7 +85,19 @@ class SelectionDataLoader {
         return UIImage(named: "default")
     }
     
+    func documentsDirectory() -> String {
+        let documentsFolderPath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first
+        try? FileManager.default.createDirectory(atPath: documentsFolderPath! + "/Photos", withIntermediateDirectories: true, attributes: nil)
+        return documentsFolderPath!
+    }
+    
     deinit {
+                do {
+                    try FileManager.default.removeItem(atPath: self.documentsDirectory() + "/Photos")
+                    print("Deleted photos")
+                } catch {
+                    print (error.localizedDescription)
+                }
         print("Deallocation SelectionDataLoader")
     }
 }
